@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 """
-##### Fragsifier exectuable
+##### Fragsifier main executable
 
-Base script to load input data file and process with Fragsifier algorithm
-
-# Optimized parameters
-# Fixed allele join problem
+Main executable script for loading input data and process with Fragsifier algorithm
 
 Outputs results in the format:
 [0:locus, 1:sequence, 2:forward_counts, 3:reverse_counts, 4:base length, 5:allele call]
@@ -36,7 +33,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("seqs", help='input labelled sequences file containing untrimmed 351 bp ForenSeq reads')
+    parser.add_argument("inputfile", help='input labelled sequences file containing untrimmed 351 bp ForenSeq reads')
     parser.add_argument("outdir", help='output directory the labelled reads')
     parser.add_argument("-fsl", "--flank_search_length", help="The number of bases adjacent to the repeat stretch to search for flanking sequences. An integer (default: %(default)s)", default=30)
     parser.add_argument("-ft", "--flank_threshold", help="The minimum alignment scores for a pair of flanking sequence. A float (default: %(default)s)", default=18)
@@ -49,7 +46,7 @@ if __name__ == '__main__':
     parser.add_argument("-pft", "--per_flank_threshold", help="The minimum alignment scores for each flanking sequence. A float (default: %(default)s)", default=2)
     parser.add_argument("-st", "--seq_threshold", help="The minimum sequence classification prediction probability. A float (default: %(default)s)", default=0.5)
     args = parser.parse_args()
-    infile = args.seqs
+    infile = args.inputfile
     outdir = args.outdir
 
     num_cores = int(args.num_cores)
@@ -65,6 +62,7 @@ if __name__ == '__main__':
 
     parameter_block_bounds = [i for i, x in enumerate(lines) if x == '#@\n']
 
+    # Make a temporary version of the Fragsifier algorithm with custom parameters and run the temporary version
     with open("TEMP_fragsify_runtime_params.py", "w") as f:
         f.write("".join(lines[:parameter_block_bounds[0]] + [parameters] + lines[parameter_block_bounds[1]+1:]))
 
@@ -93,8 +91,6 @@ if __name__ == '__main__':
     with Pool(num_cores) as p:
         from TEMP_fragsify_runtime_params import *
         predictions = list(tqdm(p.imap(fragsify, test_sequences), total=len(test_sequences)))
-
-    #print(outdir + infile.split('/')[-1].split('.')[0] + '.extractions')
 
     with open(outdir + infile.split('/')[-1].split('.')[0] + '.extractions', 'w') as f:
         f.writelines(['\t'.join(i) + '\n' for i in predictions])
@@ -133,4 +129,5 @@ if __name__ == '__main__':
 
     print('Processing complete!\n')
 
+    # Delete the temporary file
     os.remove('TEMP_fragsify_runtime_params.py')

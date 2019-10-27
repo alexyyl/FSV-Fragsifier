@@ -5,10 +5,7 @@
 * Preprocess training data
 * Training sequence classification model
 
-Upon first fun: train the sequence classifier
-
-# 22/05/19 Update
-# 19/06/18 Update
+Upon first run when no classification models are available: trains the sequence classifier
 
 Alexander YY Liu | yliu575@aucklanduni.ac.nz
 """
@@ -126,7 +123,7 @@ else:
     sequence_reference.columns = ['locus', 'orientation', 'left_bound', 'right_bound', 'read']
     # Check that sequence must be present
     sequence_reference = sequence_reference[sequence_reference.read != '']
-    # Remove Amel and SNPs
+    # Remove Amelogenin and SNP loci
     total_loci = [x for x in set(sequence_reference.locus) if x[:2] not in ['rs', 'N2', 'mh', 'Am']]
     sequence_reference = sequence_reference[sequence_reference['locus'].isin(total_loci)]
 

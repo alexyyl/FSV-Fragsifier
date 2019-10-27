@@ -1,43 +1,22 @@
 #!/usr/bin/env python
 """
 ##### FSV string functions
-Core functions for string manipulation
-
-# 19/06/18 Update
+Functions for string manipulation
 
 Alexander YY Liu | yliu575@aucklanduni.ac.nz
 """
 import numpy as np
 import pandas as pd
 
-# Reverse complement from Stackoverflow
-alt_map = {'ins': '0'}
-complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+# Reverse complement function
+complement_dict = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
 
 def reverse_complement(seq):
-    for k, v in alt_map.items():
-        seq = seq.replace(k, v)
-    bases = list(seq)
-    bases = reversed([complement.get(base, base) for base in bases])
-    bases = ''.join(bases)
-    for k, v in alt_map.items():
-        bases = bases.replace(v, k)
-    return bases
-
-# makes an alphabetical key
-def alphabetical_transform(strin):
-    key_template = strin + strin
-    suffix_array = []
-    for i in range(0, len(strin)):
-        suffix_array += [key_template[i:]]
-    suffix_array.sort()
-    return suffix_array[0][0:len(strin)]
+    return ''.join([complement_dict.get(x,x) for x in reversed(seq)])
 
 # Method to find all repeat units in a string
 # returns a list of repeat stats, such as longest run number-
 # and a nested list of rus found in form of tuples: (repeat unit, start pos, end pos, number of repeat cycles)
-# changed deque processing to pure list processing
-# waaaay faster (13 secs > 0.06 sec)
 
 def find_rus(seq, k_range=range(3, 7)):
     found_repeats = []

@@ -24,7 +24,7 @@ Install requirements using the requirements.txt
 Run Fragsifier.py and type --help for a list of adjustable parameters
 Anaconda python is recommended.
 
-## Using custom data to retrain
+## Using custom data to retrain STR classification model
 If you wish to retrain the sequence prediction model:
 * Delete all files in the 'train' folder
 * Add STR training sequences to the FSV_reference_sequences_examples.csv file 
@@ -34,9 +34,7 @@ If you wish to retrain the sequence prediction model:
 
 # Known issues
 Tested with Anaconda with Python 3.6
-Fragsifier currently only perform extraction of STR sequence.
-
-To be updated...
+Fragsifier currently only perform extraction of STR sequences.
 
 ---
  Alexander YY Liu | yliu575@aucklanduni.ac.nz

@@ -1,29 +1,7 @@
 #!/usr/bin/env python
 """
-##### Fragsifier Actual
+##### Fragsifier Algorithm
 STR sequence fragment classifier
-
-Loads the Fragsifier algorithm into console, used for debugging and in depth analysis
-Running this script on its own will use the parameters defined at the beginning of the code
-
-
-Version 2 prototype 1
-Differences to the original:
-* Prioritize long repeat stretches
-* Limit the number of largest repeat stretches (saves time)
-* Performs sequence classification FIRST [O(1) time complexity vs O(n)]
-* Flanking sequence alignment [O(1) complexity]
-
-Added option to:
-* Search for top repeat_stretches, and focus on those areas
-
-# 19/06/18 Update
-# 2017 June Algorithm
-# Mark IV algorithm for use on GE dataset
-# Trained on Genuine sequences from MiSeq
-# Add method to deals with truncated flanks
-# > Add 4 bp offset into flank proposals
-# > record index of best alignment
 
 Alexander YY Liu | yliu575@aucklanduni.ac.nz
 """
