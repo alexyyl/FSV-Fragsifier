@@ -5,36 +5,75 @@
  ##      ###    #####
  ##   #####      ###            
 ```
+
 # Project Fragsifier: STR Sequence Fragment Classifier
 
-We present a machine learning approach to short tandem repeat (STR) sequence detection and extraction called Fragsifier. Using massively parallel sequencing data, STRs are detected by first locating the longest repeat stretches on a read, then by locus prediction using k-mers with a machine learning sequence model, followed by reference flanking sequence alignment to determine precise STR boundaries. 
+Fragsifier is a forensic short tandem repeat (STR) sequence extraction tool for massively parallel sequencing data.
 
-This tool uses the STR flanking sequence information of STRait Razor v2s, which is accessible at: https://www.unthsc.edu/graduate-school-of-biomedical-sciences/laboratory-faculty-and-staff/strait-razor/
+> Original article: [Forensic STR allele extraction using a machine learning paradigm](https://doi.org/10.1016/j.fsigen.2019.102194)
+
+Fragsifier uses a machine learning approach to classify potential STRs in addition to the classic flanking sequence alignment technique.
+
 
 # Algorithm overview
-The tool performs the following steps in sequence: 
-* Detect all repeat stretches in a read
-* Create a list all possible STR sequences
-* Use sequence classifiers to predict locus of possible STR
-* Perform flanking sequence alignment to locate STR boundaries and generate alignment score
-* Assign highest-scoring sequence as a legitimate STR
+To find STRs on a read, the tool performs the following procedures: 
+
+* Detect all repeat stretches present on the read
+* Create a list of STR candidates containing all possible STR sequences (combinations of repeat stretches)
+* Use k-mer/n-gram based sequence classifiers to predict the locus of each candidate
+* Perform flanking sequence alignment on each STR candidate to locate the STR boundaries and generate an alignment score
+* Candidate STRs with congruent sequence classification and flanking sequence alignment results are returned as a legitimate STR
+
+Note: Fragsifier is designed to analyze repeat stretches so will skip SNP sequences.
+
+# Installation
+Fragsifier was developed in Python 3.6. It is recommened that the program be installed in a [Conda virtual environment](https://www.anaconda.com/products/individual). 
+
+Fragsifier is now available on PyPI and can be installed via pip:
+
+`pip install fragsifier`
+
+
+Installing using the pip command will also install the required packages automatically. 
+
+
+Alternatively, Fragsifier can be installed from the download source folder by running:
+
+```
+pip install .	# run in setup.py directory
+```
+
+Fragsifier can also be run directly from the source folder by running:
+```
+pip install requirements.txt	# install requirements first
+python fragsifier.py		# type --help for a list of adjustable parameters
+```
 
 # Usage
-Install requirements using the requirements.txt
-Run Fragsifier.py and type --help for a list of adjustable parameters
-Anaconda python is recommended.
+Fragsifier works out of the box with the pretrained models as described in the paper. 
+The tool readily extracts STR loci described in [STRait Razor v2s](https://doi.org/10.1016/j.fsigen.2017.03.013).
 
-## Using custom data to retrain STR classification model
-If you wish to retrain the sequence prediction model:
-* Delete all files in the 'train' folder
-* Add STR training sequences to the FSV_reference_sequences_examples.csv file 
-* Add negative (non-STR) training sequences to the FSV_training_negative_examples.csv file 
-* Make sure to update locus.config with new STR loci information
-* All prediction models will be created upon next run
 
-# Known issues
-Tested with Anaconda with Python 3.6
-Fragsifier currently only perform extraction of STR sequences.
+### Sequence model retraining
+The sequence model can be retrained using custom data following the below procedures:
+
+* Delete all the files in the `models` folder
+* Add training sequence files to the `models` folder:
+	* A `FSV_reference_sequences_examples.csv` file containing example sequence from each STR locus
+	* A `FSV_training_negative_examples.csv` file negative (non-STR, noise) sequences
+	* Examples of above files can be found in the models folder (prior to being deleted) 
+* Make sure to update the `locus.config` file in the `routines` folder with new STR loci information
+* Machine learning prediction models will be rebuilt automatically when the tool is next run. A 'building models' message will be displayed. 
+
+Tip: The models can be retrained in the source folder when downloaded, and then installed to the system using `pip install .` afterwards.
+
+# Release notes
+
+## v1.0.1
+* Reorganized code
+* Code can now be run as a script in the local folder or be installed as a package
+* Installation via pip now installs dependencies
+* Fragsifier now available as a package on PyPI
 
 ---
  Alexander YY Liu | yliu575@aucklanduni.ac.nz
@@ -42,4 +81,4 @@ Fragsifier currently only perform extraction of STR sequences.
 
 
 
-
+e 

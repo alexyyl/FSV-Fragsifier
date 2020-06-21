@@ -1,24 +1,30 @@
 #!/usr/bin/env python
-"""
-##### FSV sequence classification preprocessing
-
-* Preprocess training data
-* Training sequence classification model
-
-Upon first run when no classification models are available: trains the sequence classifier
-
-Alexander YY Liu | yliu575@aucklanduni.ac.nz
-"""
+#
+# [ Project Fragsifier ]
+# Fragsifier preprocessing routine
+#
+# Preprocess training data
+# Train sequence classification model if not yet present
+#
+# Alexander YY Liu | yliu575@aucklanduni.ac.nz
 
 import pickle
 import os
 from collections import Counter
 import random
-from FSV_string_functions import *
+from termcolor import cprint
+
+# Import routines based on if main script is run as package vs script
+if '.'.join(__name__.split('.')[:-1]) == 'routines':
+    from routines.string_functions import *
+    train_folder = 'models/'
+else:
+    from fragsifier.routines.string_functions import *
+    train_folder = os.path.dirname(os.path.dirname(__file__))+'/models/'
 
 # Set k value
 k = 7 # Used 7-mers as sequence features
-train_folder = 'train/'
+config_path = os.path.join(os.path.dirname(__file__), 'locus.config')
 
 seq_ref_flank_length = 25
 num_sequences_to_augment_per_locus = 5
@@ -55,7 +61,7 @@ if os.path.isfile(train_folder + 'flank_dict.pkl') and os.path.isfile(train_fold
     allele_len_conversion_dict = pickle.load(open(train_folder + 'allele_len_conversion_dict.pkl', 'rb'))
 else:
     # Load in locus flanking sequence database
-    locus_ref = pd.read_csv('locus.config', sep='\t', header=None)
+    locus_ref = pd.read_csv(config_path, sep='\t', header=None)
 
     # Remove Amel and SNPs if they exist
     locus_ref = locus_ref.iloc[
@@ -96,8 +102,6 @@ else:
     pickle.dump(allele_len_conversion_dict, open(train_folder + 'allele_len_conversion_dict.pkl', 'wb'))
     pickle.dump(allele_num_calculation_dict, open(train_folder + 'allele_num_calculation_dict.pkl', 'wb'))
 
-print('Completed!')
-
 ## Load reference sequences and models
 print('>','Loading sequence models')
 if os.path.isfile(train_folder + 'sequence_model.pkl') and os.path.isfile(train_folder + 'key_loci_dict.pkl'):
@@ -106,7 +110,7 @@ if os.path.isfile(train_folder + 'sequence_model.pkl') and os.path.isfile(train_
     seq_vectorizer = pickle.load(open(train_folder + 'seq_vectorizer.pkl', 'rb'))
     class_le = pickle.load(open(train_folder + 'class_le.pkl', 'rb'))
 else:
-    print('>', 'Creating new model')
+    cprint('Model not found, building new model', 'yellow')
     print('>', 'Loading training data')
 
     # Load reference sequences and build new sequence models
@@ -156,7 +160,7 @@ else:
     reads_to_sample = 300
     sampling_df = pd.DataFrame()
     for locus in set(sequence_reference.locus):
-        sampling_df = sampling_df.append(sequence_reference[sequence_reference.locus == locus].sample(reads_to_sample, replace=True), sort=False)
+        sampling_df = sampling_df.append(sequence_reference[sequence_reference.locus == locus].sample(reads_to_sample, replace=True))
     sequence_reference = sampling_df
 
     ## Perform sequence augmentation
@@ -190,7 +194,7 @@ else:
     augmented_sequences.columns = ['locus', 'orientation', 'sequence',]
 
     # Append to dataset
-    sequence_reference = sequence_reference.append(augmented_sequences, sort=False)
+    sequence_reference = sequence_reference.append(augmented_sequences)
 
     # Load in trailing noise, format and append to training data
     print('>', 'Adding noise sequences')
@@ -208,7 +212,7 @@ else:
     negatives_df['sequence'] = trimmed_noise
 
     # Add 3000 noise sequences to training sequences
-    sequence_reference = sequence_reference.append(negatives_df.sample(3000), sort=False)
+    sequence_reference = sequence_reference.append(negatives_df.sample(3000))
 
     # Data curation
     training_sequences = sequence_reference['sequence'].values.tolist()
@@ -256,7 +260,7 @@ else:
 
     # Train models
     # Removed decision tree and KNN
-    print('>', 'Building model')
+    print('>', 'Building model', end='..')
 
     #from sklearn.linear_model import LogisticRegression
     #sequence_model = LogisticRegression()
@@ -274,7 +278,7 @@ else:
     pickle.dump(seq_vectorizer, open(train_folder + 'seq_vectorizer.pkl', 'wb'))
     pickle.dump(class_le, open(train_folder + 'class_le.pkl', 'wb'))
 
-print('Completed!')
+    cprint('Completed!', 'green')
 
 # Classifier function
 def STRSSC_predict(model, X_query):

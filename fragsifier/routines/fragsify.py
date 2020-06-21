@@ -1,47 +1,38 @@
 #!/usr/bin/env python
-"""
-##### Fragsifier Algorithm
-STR sequence fragment classifier
-
-Alexander YY Liu | yliu575@aucklanduni.ac.nz
-"""
+#
+# [ Project Fragsifier ]
+# Fragsifier sequence extraction algorithm
+#
+# STR sequence fragment classifier
+#
+# Alexander YY Liu | yliu575@aucklanduni.ac.nz
 
 from Bio import pairwise2
-from FSV_preprocessing import *
-from FSV_string_functions import *
+
 import warnings
 import numpy as np
-warnings.filterwarnings("ignore")
 align = pairwise2.align.localms
+
+# Import routines based on if main script is run as package vs script
+if '.'.join(__name__.split('.')[:-1]) == 'routines':
+    from routines.string_functions import *
+    from routines.preprocessing import *
+else:
+    from fragsifier.routines.string_functions import *
+    from fragsifier.routines.preprocessing import *
 
 # Hidden settings
 allele_num = 0
 known_strs_present = list()
 show_table = 0
 
-#@
-# General settings
-flank_search_length = 30
-inwards_offset = 4
-min_tandem_repeat = 2
-max_STR_complexity = 11
+# Make percentage flankshow dictionary
+def make_flank_threshold_dict(min_percentage_flank_aligned=0.2, per_flank_threshold=7):
+    return dict([[x[0], (max(len(x[1][0]) * min_percentage_flank_aligned, per_flank_threshold),
+                         max(len(x[1][1]) * min_percentage_flank_aligned, per_flank_threshold))] for x in
+                 flank_dict.items()])
 
-n_longest_repeat_stretches = 3
-
-# Per flanking sequence alignment thresholds (covered outside FSV function)
-min_percentage_flank_aligned = 0.2
-per_flank_threshold = 7
-
-# Flanking sequence pair alignment thresholds
-flank_threshold = 18
-
-# Sequence classifier prediction thresholds
-seq_threshold = 0.5
-#@
-
-# Make percentage flank dictionary
-flank_alignment_threshold_dict = dict([[x[0], (max(len(x[1][0]) * min_percentage_flank_aligned, per_flank_threshold),
-                                               max(len(x[1][1]) * min_percentage_flank_aligned, per_flank_threshold))] for x in flank_dict.items()])
+flank_alignment_threshold_dict = make_flank_threshold_dict()
 
 # Flank alignment filter includes both per_flank_threshold and min_percentage_flank_aligned thresholds
 def flank_alignment_filter(score, locus, orient):
@@ -51,10 +42,10 @@ def flank_alignment_filter(score, locus, orient):
         return 0
 
 
-def fragsify(sequence, flank_threshold=flank_threshold, seq_threshold=seq_threshold,
-             flank_search_length=flank_search_length, show_table=show_table, inwards_offset=inwards_offset,
-             known_strs_present=[], n_longest_repeat_stretches=n_longest_repeat_stretches,
-             max_repeat_stretches=max_STR_complexity, min_tandem_repeat=min_tandem_repeat, allele_num=allele_num):
+def fragsify(sequence, flank_threshold=10, seq_threshold=0.5,
+             flank_search_length=30, show_table=show_table, inwards_offset=4,
+             known_strs_present=[], n_longest_repeat_stretches=3,
+             max_repeat_stretches=11, min_tandem_repeat=2, allele_num=allele_num):
 
     # Calculate sequence length
     seq_length = len(sequence)
@@ -202,4 +193,3 @@ def fragsify(sequence, flank_threshold=flank_threshold, seq_threshold=seq_thresh
                                 str(decision_table['alignment_score'][x])])]
 
     return out_seqs
-

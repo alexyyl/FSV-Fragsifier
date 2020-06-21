@@ -1,34 +1,36 @@
 #!/usr/bin/env python
-"""
-##### Fragsifier main executable
+#
+# [ Project Fragsifier ]
+# Fragsifier main executable
+#
+# Main control flow script for data preprocessing and sequence extraction
+#
+# Alexander YY Liu | yliu575@aucklanduni.ac.nz
 
-Main executable script for loading input data and process with Fragsifier algorithm
 
-Outputs results in the format:
-[0:locus, 1:sequence, 2:forward_counts, 3:reverse_counts, 4:base length, 5:allele call]
-
-Alexander YY Liu | yliu575@aucklanduni.ac.nz
-"""
-
+from __future__ import absolute_import
 from tqdm import tqdm
+from pathlib2 import Path
 from multiprocessing import Pool
 import pandas as pd
-from FSV_string_functions import *
-from FSV_preprocessing import *
 import argparse
 import os
+from termcolor import cprint
 
-if __name__ == '__main__':
-
-    print(""" #######  #### ###  ##
+#if __name__ == '__main__':
+if True:
+    """
+    Run this code block regardless of 
+    """
+    cprint(""" #######  #### ###  ##
          ###   ###  ##
  ####### ###   ###  ##
  ##      ###    #####
  ##   #####      ###
 
- == Project Fragsifier==
+ == Project Fragsifier ==
  STR Read Fragment Classifier: Accurate forensic STR detection
-     """)
+     """, 'yellow')
 
     parser = argparse.ArgumentParser()
 
@@ -46,58 +48,72 @@ if __name__ == '__main__':
     parser.add_argument("-pft", "--per_flank_threshold", help="The minimum alignment scores for each flanking sequence. A float (default: %(default)s)", default=2)
     parser.add_argument("-st", "--seq_threshold", help="The minimum sequence classification prediction probability. A float (default: %(default)s)", default=0.5)
     args = parser.parse_args()
+    
     infile = args.inputfile
-    outdir = args.outdir
+    outdir = Path(args.outdir)
 
     num_cores = int(args.num_cores)
 
-    parameters = "flank_search_length = {}\ninwards_offset = {}\nmin_tandem_repeat = {}\nmax_STR_complexity = {}\nn_longest_repeat_stretches = {}\nmin_percentage_flank_aligned = {}\nper_flank_threshold = {}\nnum_cores = {}\nflank_threshold = {}\nseq_threshold = {}".format(
-        int(args.flank_search_length), int(args.inwards_offset), int(args.min_tandem_repeat),
-        int(args.max_STR_complexity), int(args.n_longest_repeat_stretches), float(args.min_percentage_flank_aligned),
-        int(args.per_flank_threshold), int(args.num_cores), int(args.flank_threshold), float(args.seq_threshold))
+    # Create output dir if it doesnt exist
+    if os.path.exists(outdir) == False:
+        os.mkdir(outdir)
 
-
-    with open("FSV_fragsify.py") as f:
-        lines = f.readlines()
-
-    parameter_block_bounds = [i for i, x in enumerate(lines) if x == '#@\n']
-
-    # Make a temporary version of the Fragsifier algorithm with custom parameters and run the temporary version
-    with open("TEMP_fragsify_runtime_params.py", "w") as f:
-        f.write("".join(lines[:parameter_block_bounds[0]] + [parameters] + lines[parameter_block_bounds[1]+1:]))
+    # Import routines based on if main script is run as package vs script
+    if __package__:
+        from fragsifier.routines.string_functions import *
+        from fragsifier.routines.preprocessing import *
+        from fragsifier.routines.fragsify import *
+    else:
+        from routines.string_functions import *
+        from routines.preprocessing import *
+        from routines.fragsify import *
 
     # Added 10/06/18
     seq_ref_flank_length = 25
 
     # Load query sequences
-    # Check if input file is FASTQ
+    # Check if input file is FASTQ((k, *vals) for k, vals in library.items())
     # Use only the sequence lines
-    print('processing file:', infile)
     with open(infile, 'r') as f:
         test_sequences = f.readlines()
-        if test_sequences[0][0] == '@':
-            print('input file is FASTQ')
-            test_sequences = [x.rstrip() for i, x in enumerate(test_sequences) if i % 4 == 1]
-        else:
-            print('input file contains sequences')
-            test_sequences = [x.rstrip() for x in test_sequences]
-    
-    print('found {} sequences'.format(len(test_sequences)))
-    print('Begin processing with {} cores'.format(num_cores))
+        try:
+            if test_sequences[0][0] == '@':
+                print('input file %s is FASTQ format with %s sequences' % (infile, len(test_sequences)))
+                test_sequences = [x.rstrip() for i, x in enumerate(test_sequences) if i % 4 == 1]
+            else:
+                print('input file %s is raw sequences format with %s sequences' % (infile, len(test_sequences)))
+                test_sequences = [x.rstrip() for x in test_sequences]
+        except IndexError:
+            print('Input file is empty!')
+            quit()
 
-    # Use multiprocessing
+    flank_alignment_threshold_dict = make_flank_threshold_dict(min_percentage_flank_aligned=float(args.min_percentage_flank_aligned),
+                                                               per_flank_threshold=int(args.per_flank_threshold))
+
+    def fragsify_wrapper(input_sequence):
+        return fragsify(input_sequence,
+                        flank_search_length=int(args.flank_search_length),
+                        inwards_offset=int(args.inwards_offset),
+                        min_tandem_repeat=int(args.min_tandem_repeat),
+                        n_longest_repeat_stretches=int(args.n_longest_repeat_stretches),
+                        flank_threshold=int(args.flank_threshold),
+                        seq_threshold=float(args.seq_threshold))
+
+def main():
+    '''Section code so that it runs in both script mode and package mode'''
+
+    cprint('Performing sequence extraction with {} cores'.format(num_cores), 'yellow')
+
     predictions = []
-
     with Pool(num_cores) as p:
-        from TEMP_fragsify_runtime_params import *
-        predictions = list(tqdm(p.imap(fragsify, test_sequences), total=len(test_sequences)))
+        predictions = list(tqdm(p.imap(fragsify_wrapper, test_sequences), total=len(test_sequences)))
 
-    with open(outdir + infile.split('/')[-1].split('.')[0] + '.extractions', 'w') as f:
+    with open(outdir / (infile.split('/')[-1].split('.')[0] + '.extractions'), 'w') as f:
         f.writelines(['\t'.join(i) + '\n' for i in predictions])
 
-    # Make ckseqs formatted output file
+        # Make ckseqs formatted output file
 
-    # Count alleles and produce ckseqs standard input
+        # Count alleles and produce ckseqs standard input
     alleles = [':'.join(y.split(':')[:-1]) for x in predictions for y in x if y != '']
 
     extracted_sequences_dict = {}
@@ -121,13 +137,14 @@ if __name__ == '__main__':
 
     # Append to skseqs output file
     ckseqs_df = pd.DataFrame.from_dict(extracted_sequences_dict, orient='index').reset_index()
-    ckseqs_df[2] = ckseqs_df[0]+ckseqs_df[1]
+    ckseqs_df[2] = ckseqs_df[0] + ckseqs_df[1]
     ckseqs_df['index'] = [x.split(':')[0] for x in ckseqs_df['index']]
     ckseqs_df.columns = [1, 2, 3, 4, 5, 0]
     ckseqs_df = ckseqs_df.sort_values(by=0, ascending=True)
-    ckseqs_df[[0, 1, 2, 3, 4, 5]].to_csv(outdir + infile.split('/')[-1].split('.')[0] + '.ckseqs', header=None, index=None)
+    ckseqs_df[[0, 1, 2, 3, 4, 5]].to_csv(outdir / (infile.split('/')[-1].split('.')[0] + '.ckseqs'), header=None,
+                                         index=None)
 
-    print('Processing complete!\n')
+    cprint('Processing complete!\n', 'green')
 
-    # Delete the temporary file
-    os.remove('TEMP_fragsify_runtime_params.py')
+if __name__ == '__main__':
+    main()
