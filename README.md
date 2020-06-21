@@ -77,8 +77,3 @@ Tip: The models can be retrained in the source folder when downloaded, and then 
 
 ---
  Alexander YY Liu | yliu575@aucklanduni.ac.nz
-
-
-
-
-e 
