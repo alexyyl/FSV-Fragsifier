@@ -5,5 +5,5 @@ tqdm==4.19.4
 termcolor==1.1.0
 biopython==1.69
 scikit_learn==0.19.1
-scipy==1.0.0
+scipy==1.10.0
 termcolor==1.1.0 
