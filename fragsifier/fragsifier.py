@@ -10,18 +10,43 @@
 
 from __future__ import absolute_import
 from tqdm import tqdm
-from pathlib2 import Path
-from multiprocessing import Pool
+from pathlib import Path
+from multiprocessing import Pool, freeze_support
+import functools
 import pandas as pd
 import argparse
 import os
 from termcolor import cprint
 
-#if __name__ == '__main__':
-if True:
-    """
-    Run this code block regardless of 
-    """
+
+def _worker_init():
+    """Pin all internal thread pools to 1 thread per worker to avoid nested parallelism deadlocks."""
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['OPENBLAS_NUM_THREADS'] = '1'
+    os.environ['MKL_NUM_THREADS'] = '1'
+    try:
+        from threadpoolctl import threadpool_limits
+        threadpool_limits(1)
+    except ImportError:
+        pass
+
+# Import routines at module level so worker processes can import them correctly
+if __package__:
+    from fragsifier.routines.string_functions import *
+    from fragsifier.routines.preprocessing import *
+    from fragsifier.routines.fragsify import *
+else:
+    from routines.string_functions import *
+    from routines.preprocessing import *
+    from routines.fragsify import *
+
+# Added 10/06/18
+seq_ref_flank_length = 25
+
+
+def main():
+    '''Section code so that it runs in both script mode and package mode'''
+
     cprint(""" #######  #### ###  ##
          ###   ###  ##
  ####### ###   ###  ##
@@ -31,8 +56,6 @@ if True:
  == Project Fragsifier ==
  STR Read Fragment Classifier: Accurate forensic STR detection
      """, 'yellow')
-
-    parser = argparse.ArgumentParser()
 
     parser = argparse.ArgumentParser()
     parser.add_argument("inputfile", help='input labelled sequences file containing untrimmed 351 bp ForenSeq reads')
@@ -48,28 +71,14 @@ if True:
     parser.add_argument("-pft", "--per_flank_threshold", help="The minimum alignment scores for each flanking sequence. A float (default: %(default)s)", default=2)
     parser.add_argument("-st", "--seq_threshold", help="The minimum sequence classification prediction probability. A float (default: %(default)s)", default=0.5)
     args = parser.parse_args()
-    
+
     infile = args.inputfile
     outdir = Path(args.outdir)
-
     num_cores = int(args.num_cores)
 
     # Create output dir if it doesnt exist
-    if os.path.exists(outdir) == False:
+    if not os.path.exists(outdir):
         os.mkdir(outdir)
-
-    # Import routines based on if main script is run as package vs script
-    if __package__:
-        from fragsifier.routines.string_functions import *
-        from fragsifier.routines.preprocessing import *
-        from fragsifier.routines.fragsify import *
-    else:
-        from routines.string_functions import *
-        from routines.preprocessing import *
-        from routines.fragsify import *
-
-    # Added 10/06/18
-    seq_ref_flank_length = 25
 
     # Load query sequences
     # Check if input file is FASTQ((k, *vals) for k, vals in library.items())
@@ -86,29 +95,31 @@ if True:
         except IndexError:
             print('Input file is empty!')
             quit()
+    make_flank_threshold_dict(min_percentage_flank_aligned=float(args.min_percentage_flank_aligned),
+                              per_flank_threshold=int(args.per_flank_threshold))
 
-    flank_alignment_threshold_dict = make_flank_threshold_dict(min_percentage_flank_aligned=float(args.min_percentage_flank_aligned),
-                                                               per_flank_threshold=int(args.per_flank_threshold))
-
-    def fragsify_wrapper(input_sequence):
-        return fragsify(input_sequence,
-                        flank_search_length=int(args.flank_search_length),
-                        inwards_offset=int(args.inwards_offset),
-                        min_tandem_repeat=int(args.min_tandem_repeat),
-                        n_longest_repeat_stretches=int(args.n_longest_repeat_stretches),
-                        flank_threshold=int(args.flank_threshold),
-                        seq_threshold=float(args.seq_threshold))
-
-def main():
-    '''Section code so that it runs in both script mode and package mode'''
+    # Use functools.partial so the wrapper is picklable for multiprocessing on Windows
+    fragsify_wrapper = functools.partial(
+        fragsify,
+        flank_search_length=int(args.flank_search_length),
+        inwards_offset=int(args.inwards_offset),
+        min_tandem_repeat=int(args.min_tandem_repeat),
+        n_longest_repeat_stretches=int(args.n_longest_repeat_stretches),
+        flank_threshold=int(args.flank_threshold),
+        seq_threshold=float(args.seq_threshold),
+    )
 
     cprint('Performing sequence extraction with {} cores'.format(num_cores), 'yellow')
 
-    predictions = []
-    with Pool(num_cores) as p:
-        predictions = list(tqdm(p.imap(fragsify_wrapper, test_sequences), total=len(test_sequences)))
+    if num_cores == 1:
+        predictions = [fragsify_wrapper(seq) for seq in tqdm(test_sequences)]
+    else:
+        chunksize = max(1, len(test_sequences) // (num_cores * 16))
+        with Pool(num_cores, initializer=_worker_init) as p:
+            predictions = list(tqdm(p.imap(fragsify_wrapper, test_sequences, chunksize=chunksize), total=len(test_sequences)))
 
-    with open(outdir / (infile.split('/')[-1].split('.')[0] + '.extractions'), 'w') as f:
+    stem = Path(infile).stem
+    with open(outdir / (stem + '.extractions'), 'w') as f:
         f.writelines(['\t'.join(i) + '\n' for i in predictions])
 
         # Make ckseqs formatted output file
@@ -141,10 +152,11 @@ def main():
     ckseqs_df['index'] = [x.split(':')[0] for x in ckseqs_df['index']]
     ckseqs_df.columns = [1, 2, 3, 4, 5, 0]
     ckseqs_df = ckseqs_df.sort_values(by=0, ascending=True)
-    ckseqs_df[[0, 1, 2, 3, 4, 5]].to_csv(outdir / (infile.split('/')[-1].split('.')[0] + '.ckseqs'), header=None,
+    ckseqs_df[[0, 1, 2, 3, 4, 5]].to_csv(outdir / (stem + '.ckseqs'), header=None,
                                          index=None)
 
     cprint('Processing complete!\n', 'green')
 
 if __name__ == '__main__':
+    freeze_support()
     main()

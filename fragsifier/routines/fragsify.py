@@ -7,11 +7,51 @@
 #
 # Alexander YY Liu | yliu575@aucklanduni.ac.nz
 
-from Bio import pairwise2
-
 import warnings
 import numpy as np
-align = pairwise2.align.localms
+from Bio.Align import PairwiseAligner as _PairwiseAligner
+
+_pa = _PairwiseAligner()
+_pa.mode = 'local'
+_pa.match_score = 1
+_pa.mismatch_score = -2
+_pa.open_gap_score = -2
+_pa.extend_gap_score = -2
+_pa.end_insertion_score = 0.0
+_pa.end_deletion_score = 0.0
+
+
+def _aligned_strings(seqA, seqB, aln):
+    """Reconstruct pairwise2-style dash-padded aligned strings from a PairwiseAligner alignment."""
+    ta, tb = [], []
+    tp, qp = 0, 0
+    for (ts, te), (qs, qe) in zip(*aln.aligned):
+        gap_t = ts - tp
+        gap_q = qs - qp
+        if gap_t:
+            ta.append(seqA[tp:ts]); tb.append('-' * gap_t)
+        if gap_q:
+            ta.append('-' * gap_q); tb.append(seqB[qp:qs])
+        ta.append(seqA[ts:te]); tb.append(seqB[qs:qe])
+        tp, qp = te, qe
+    if tp < len(seqA):
+        ta.append(seqA[tp:]); tb.append('-' * (len(seqA) - tp))
+    if qp < len(seqB):
+        ta.append('-' * (len(seqB) - qp)); tb.append(seqB[qp:])
+    return ''.join(ta), ''.join(tb)
+
+
+def align(seqA, seqB, match=1, mismatch=-2, open_gap=-2, extend_gap=-2,
+          penalize_end_gaps=False, one_alignment_only=True):
+    eg = 0.0 if not penalize_end_gaps else open_gap
+    _pa.end_insertion_score = eg
+    _pa.end_deletion_score = eg
+    alns = _pa.align(seqA, seqB)
+    if not alns:
+        return []
+    aln = alns[0]
+    sa, sb = _aligned_strings(seqA, seqB, aln)
+    return [(sa, sb, aln.score)]
 
 # Import routines based on if main script is run as package vs script
 if '.'.join(__name__.split('.')[:-1]) == 'routines':
@@ -63,7 +103,7 @@ def fragsify(sequence, flank_threshold=10, seq_threshold=0.5,
     # Prioritize longest uninterrupted stretch (repeat_stretches)
     repeat_ranges = [[(left, right), (i,j) ] for i, left in enumerate([x[1] for x in repeat_elements])
                      for j,right in enumerate([x[2] for x in repeat_elements[i:i+max_repeat_stretches+1]], start=i)
-                     if any([i <= y and j >= y for y in top_repeat_stretches])]
+                     if any(i <= y <= j for y in top_repeat_stretches)]
 
     try:
         base_ranges, repeat_ranges = list(map(list, zip(*repeat_ranges)))

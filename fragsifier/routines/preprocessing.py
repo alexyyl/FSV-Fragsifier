@@ -12,7 +12,10 @@ import pickle
 import os
 from collections import Counter
 import random
+from multiprocessing import current_process
 from termcolor import cprint
+
+_is_main_process = current_process().name == 'MainProcess'
 
 # Import routines based on if main script is run as package vs script
 if '.'.join(__name__.split('.')[:-1]) == 'routines':
@@ -42,18 +45,18 @@ def labels_onehot(labels):
 # 14/06/18 Added
 
 def STRSSC_predict_proba(model, X_query):
-
     predictions = model.predict_proba(X_query)
-    index_of_best_predictions = [np.argmax(x) for x in predictions]
-
-    return [[class_le.inverse_transform(index), pred[index]] for pred, index in zip(predictions, index_of_best_predictions)]
+    indices = np.argmax(predictions, axis=1)
+    labels = class_le.inverse_transform(indices)
+    scores = predictions[np.arange(len(predictions)), indices]
+    return list(zip(labels, scores))
 
 
 ## Load in preinitiated configurations if exists
 ## Or else do preprocess and build new models
 
 ## Load allele definitions
-print('>','Loading allele definitions')
+if _is_main_process: print('>','Loading allele definitions')
 
 if os.path.isfile(train_folder + 'flank_dict.pkl') and os.path.isfile(train_folder+'allele_len_conversion_dict') and os.path.isfile(train_folder+'allele_num_calculation_dict'):
     flank_dict = pickle.load(open(train_folder+'flank_dict.pkl', 'rb'))
@@ -103,7 +106,7 @@ else:
     pickle.dump(allele_num_calculation_dict, open(train_folder + 'allele_num_calculation_dict.pkl', 'wb'))
 
 ## Load reference sequences and models
-print('>','Loading sequence models')
+if _is_main_process: print('>','Loading sequence models')
 if os.path.isfile(train_folder + 'sequence_model.pkl') and os.path.isfile(train_folder + 'key_loci_dict.pkl'):
     sequence_model = pickle.load(open(train_folder + 'sequence_model.pkl', 'rb'))
     key_loci_dict = pickle.load(open(train_folder + 'key_loci_dict.pkl', 'rb'))
@@ -111,17 +114,17 @@ if os.path.isfile(train_folder + 'sequence_model.pkl') and os.path.isfile(train_
     class_le = pickle.load(open(train_folder + 'class_le.pkl', 'rb'))
 else:
     cprint('Model not found, building new model', 'yellow')
-    print('>', 'Loading training data')
+    if _is_main_process: print('>', 'Loading training data')
 
     # Load reference sequences and build new sequence models
     train_files = [x for x in os.listdir(train_folder) if 'csv' in x]
-    sequence_reference = pd.DataFrame()
+    sequence_reference = []#pd.DataFrame()
 
     # Read all training files except the negative examples
     for file in train_files:
         if file != 'FSV_training_negative_examples.csv':
-            sequence_reference = sequence_reference.append(
-                pd.read_csv(train_folder + file, header=None).sort_values(by=0))
+            sequence_reference.append(pd.read_csv(train_folder + file, header=None).sort_values(by=0))
+    sequence_reference = pd.concat(sequence_reference).reset_index(drop=True)
 
     # Remove negatives sequences from training examples and use trailing noise instead
     sequence_reference.columns = ['locus', 'orientation', 'left_bound', 'right_bound', 'read']
@@ -158,9 +161,10 @@ else:
 
     # Sample n sequences from each classsort=False
     reads_to_sample = 300
-    sampling_df = pd.DataFrame()
+    sampling_df = [] #pd.DataFrame()
     for locus in set(sequence_reference.locus):
-        sampling_df = sampling_df.append(sequence_reference[sequence_reference.locus == locus].sample(reads_to_sample, replace=True))
+        sampling_df.append(sequence_reference[sequence_reference.locus == locus].sample(reads_to_sample, replace=True))
+    sampling_df = pd.concat(sampling_df).reset_index(drop=True)
     sequence_reference = sampling_df
 
     ## Perform sequence augmentation
@@ -194,7 +198,7 @@ else:
     augmented_sequences.columns = ['locus', 'orientation', 'sequence',]
 
     # Append to dataset
-    sequence_reference = sequence_reference.append(augmented_sequences)
+    sequence_reference = pd.concat([sequence_reference, augmented_sequences]).reset_index(drop=True)
 
     # Load in trailing noise, format and append to training data
     print('>', 'Adding noise sequences')
@@ -212,8 +216,8 @@ else:
     negatives_df['sequence'] = trimmed_noise
 
     # Add 3000 noise sequences to training sequences
-    sequence_reference = sequence_reference.append(negatives_df.sample(3000))
-
+    sequence_reference = pd.concat([sequence_reference, negatives_df.sample(3000, replace=True)]).reset_index(drop=True)
+    
     # Data curation
     training_sequences = sequence_reference['sequence'].values.tolist()
     locus_label = sequence_reference['locus'].values.tolist()
