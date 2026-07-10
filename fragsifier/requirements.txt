@@ -1,6 +1,6 @@
 pandas==0.22.0
 pathlib2==2.3.0
-numpy==1.13.3
+numpy==1.22.0
 tqdm==4.19.4
 termcolor==1.1.0
 biopython==1.69
